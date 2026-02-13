@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { 
-  FileDown, Copy, Check, AlertCircle, Lock, Unlock, EyeOff,
-  Music, FileText, File, Video, Image as ImageIcon
-} from 'lucide-react';
+  FileDown, Copy, Check, AlertCircle, Lock, Unlock, EyeOff, 
+  Hash, Music, FileText, File, Trash2, Clock 
+} from 'lucide-react'; // Added Clock here
 
+// Change to 5001 if using port 5001
 const API_URL = 'http://localhost:5000/api';
 
 const ViewContent = () => {
@@ -22,6 +23,8 @@ const ViewContent = () => {
   // UI States
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false); 
+  const [isDeleted, setIsDeleted] = useState(false); 
 
   useEffect(() => {
     fetchContent();
@@ -55,6 +58,20 @@ const ViewContent = () => {
   const handleUnlock = (e) => {
     e.preventDefault();
     fetchContent(passwordInput);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this content? It will be gone forever.")) return;
+
+    setDeleting(true);
+    try {
+      await axios.delete(`${API_URL}/content/${id}`);
+      setIsDeleted(true); 
+    } catch (err) {
+      alert("Failed to delete content. It might already be gone.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const copyContent = () => {
@@ -94,7 +111,7 @@ const ViewContent = () => {
 
   const getFileType = (filename) => {
     const ext = filename?.split('.').pop().toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
     if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) return 'video';
     if (['mp3', 'wav', 'mpeg'].includes(ext)) return 'audio';
     if (['pdf'].includes(ext)) return 'pdf';
@@ -106,20 +123,21 @@ const ViewContent = () => {
       switch (type) {
         case 'image': return <img src={data.content} className="w-full h-auto max-h-[500px] object-contain bg-slate-900 rounded-lg border border-slate-700 mb-6" />;
         case 'video': return <video controls src={data.content} className="w-full max-h-[500px] bg-slate-900 rounded-lg border border-slate-700 mb-6" />;
-        case 'audio': return <div className="bg-slate-900 p-6 rounded-lg border border-slate-700 mb-6 flex flex-col items-center"><Music size={48} className="text-purple-400 mb-4" /><audio controls src={data.content} className="w-full" /></div>;
+        case 'audio': return <div className="bg-slate-900 p-6 rounded-lg border border-slate-700 mb-6 text-center"><Music size={48} className="text-purple-400 mb-4 inline-block" /><audio controls src={data.content} className="w-full" /></div>;
         case 'pdf': return <iframe src={data.content} className="w-full h-[500px] bg-slate-900 rounded-lg border border-slate-700 mb-6"></iframe>;
-        default: return <div className="bg-slate-900/50 p-10 rounded-lg border border-slate-700 mb-6 flex flex-col items-center justify-center text-slate-500"><File size={64} className="mb-4 opacity-50" /><p>No preview available</p></div>;
+        default: return <div className="bg-slate-900/50 p-10 rounded-lg border border-slate-700 mb-6 text-center text-slate-500"><File size={64} className="mb-4 opacity-50 inline-block" /><p>No preview available</p></div>;
       }
   };
 
+  // --- UI BADGES ---
   const renderOneTimeWarning = () => {
     if (data?.oneTimeView) {
       return (
-        <div className="bg-red-500/10 border border-red-500/50 text-red-200 p-4 rounded-lg mb-6 flex items-start gap-3 text-sm animate-pulse">
+        <div className="bg-red-500/10 border border-red-500/50 text-red-200 p-4 rounded-lg mb-4 flex items-start gap-3 text-sm animate-pulse">
           <EyeOff size={20} className="shrink-0 mt-0.5" />
           <div>
             <span className="font-bold block text-base mb-1">Self-Destructed</span>
-            This was a "One-Time View" link. The file has been permanently deleted from the server. <br/>
+            This link has been deleted from the server. <br/>
             If you refresh this page, the content will be lost forever.
           </div>
         </div>
@@ -128,11 +146,61 @@ const ViewContent = () => {
     return null;
   };
 
+  const renderViewLimit = () => {
+    if (data?.maxViews) {
+      const remaining = data.maxViews - data.views;
+      return (
+          <div className="bg-orange-500/10 border border-orange-500/50 text-orange-200 px-3 py-2 rounded-lg mb-4 text-sm flex items-center gap-2">
+              <Hash size={16} />
+              <span>
+                  <b>View {data.views} of {data.maxViews}</b>. 
+                  {remaining <= 0 
+                      ? " Content deleted." 
+                      : ` ${remaining} view(s) remaining.`}
+              </span>
+          </div>
+      );
+    }
+    return null;
+  };
+
+  // --- NEW: EXPIRY CLOCK ---
+  const renderExpiryInfo = () => {
+    if (data?.expireAt) {
+      // Convert the backend timestamp into a readable local date/time
+      const date = new Date(data.expireAt);
+      const formattedDate = date.toLocaleString([], { 
+        month: 'short', day: 'numeric', 
+        hour: '2-digit', minute: '2-digit' 
+      });
+
+      return (
+        <div className="bg-blue-500/10 border border-blue-500/50 text-blue-200 px-3 py-2 rounded-lg mb-6 text-sm flex items-center gap-2">
+            <Clock size={16} />
+            <span>
+                Auto-deletes on: <b>{formattedDate}</b>
+            </span>
+        </div>
+      );
+    }
+    return null;
+  };
+
   // --- RENDER STATES ---
+
+  if (isDeleted) {
+    return (
+      <div className="text-center p-8 bg-slate-800 rounded-xl border border-red-500/30 mt-10 w-full max-w-md mx-auto">
+        <Trash2 size={48} className="mx-auto text-red-500 mb-4" />
+        <h2 className="text-xl font-bold text-white mb-2">Content Deleted</h2>
+        <p className="text-slate-400">You have manually deleted this content. It is no longer accessible.</p>
+        <a href="/" className="inline-block mt-6 text-blue-400 hover:underline">Create a new link</a>
+      </div>
+    );
+  }
 
   if (loading && !isLocked) return <div className="text-slate-400 animate-pulse mt-10 text-center">Loading content...</div>;
 
-  // 1. LOCKED STATE
   if (isLocked) {
     return (
       <div className="w-full max-w-md bg-slate-800 p-8 rounded-xl shadow-2xl border border-slate-700 mt-10 mx-auto">
@@ -163,7 +231,6 @@ const ViewContent = () => {
     );
   }
 
-  // 2. ERROR STATE
   if (error) {
     return (
       <div className="text-center p-8 bg-slate-800 rounded-xl border border-red-500/30 mt-10">
@@ -175,11 +242,12 @@ const ViewContent = () => {
     );
   }
 
-  // 3. SUCCESS STATE
   return (
     <div className="w-full max-w-3xl bg-slate-800 p-8 rounded-xl shadow-2xl border border-slate-700">
        
        {renderOneTimeWarning()}
+       {renderViewLimit()}
+       {renderExpiryInfo()} {/* Injection of the new clock badge */}
 
        <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
         <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
@@ -198,14 +266,24 @@ const ViewContent = () => {
             <pre className="bg-slate-900 p-6 rounded-lg text-slate-300 font-mono whitespace-pre-wrap text-sm max-h-[60vh] overflow-y-auto border border-slate-700 shadow-inner">{data.content}</pre>
             <button onClick={copyContent} className="absolute top-4 right-4 p-2 bg-slate-700/80 hover:bg-slate-600 text-white rounded-md shadow-lg backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100">{copied ? <Check size={18} className="text-green-400"/> : <Copy size={18}/>}</button>
           </div>
-          <button onClick={handleTextDownload} className="self-end flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"><FileDown size={16} /> Download as .txt</button>
+          <div className="flex justify-end gap-3">
+             <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors border border-red-500/30 px-3 py-2 rounded-lg hover:bg-red-500/10">
+                <Trash2 size={16} /> {deleting ? "Deleting..." : "Delete Now"}
+             </button>
+             <button onClick={handleTextDownload} className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors border border-blue-500/30 px-3 py-2 rounded-lg hover:bg-blue-500/10">
+                <FileDown size={16} /> Download .txt
+             </button>
+          </div>
         </div>
       ) : (
         <div>
           {renderPreview()}
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center gap-4">
             <button onClick={handleFileDownload} disabled={downloading} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-blue-500/20 disabled:opacity-50 disabled:cursor-wait">
               {downloading ? "Loading..." : <><FileDown size={20} /> Download {data.originalName}</>}
+            </button>
+            <button onClick={handleDelete} disabled={deleting} className="text-xs text-red-400 hover:text-red-300 hover:underline flex items-center gap-1 mt-2">
+                <Trash2 size={12} /> {deleting ? "Deleting..." : "Delete this file immediately"}
             </button>
           </div>
         </div>

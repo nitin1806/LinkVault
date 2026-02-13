@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path'); // <--- This import was missing!
-const { uploadContent, getContent } = require('../controllers/uploadController');
+const { uploadContent, getContent , deleteContent} = require('../controllers/uploadController');
 
 // 1. CONFIGURE LOCAL STORAGE
 const storage = multer.diskStorage({
@@ -24,5 +24,8 @@ router.post('/upload', upload.single('file'), uploadContent);
 
 // GET /api/content/:id
 router.get('/content/:id', getContent);
+
+// DELETE /api/content/:id  <-- NEW ROUTE
+router.delete('/content/:id', deleteContent);
 
 module.exports = router;

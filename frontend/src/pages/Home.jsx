@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { UploadCloud, FileText, Loader2, Copy, Check, Clock, Lock, EyeOff } from 'lucide-react';
+import { UploadCloud, FileText, Loader2, Copy, Check, Clock, Lock, EyeOff, Hash } from 'lucide-react';
 
+// Change to 5001 if you changed your backend port
 const API_URL = 'http://localhost:5000/api';
 
 const Home = () => {
@@ -15,6 +16,8 @@ const Home = () => {
   const [expiryDate, setExpiryDate] = useState(''); 
   const [password, setPassword] = useState('');     
   const [oneTime, setOneTime] = useState(false);
+  const [maxViews, setMaxViews] = useState('');
+  
   const [copied, setCopied] = useState(false);
 
   const handleUpload = async () => {
@@ -24,15 +27,17 @@ const Home = () => {
     setLoading(true);
     const formData = new FormData();
     
-    // Core Content
+    // --- CRITICAL FIX: SEND SETTINGS FIRST ---
+    // We append these BEFORE the file so Multer reads them correctly.
+    if (expiryDate) formData.append('userExpiry', expiryDate);
+    if (password) formData.append('password', password);
+    if (maxViews) formData.append('maxViews', maxViews);
+    formData.append('oneTimeView', oneTime);
+
+    // --- SEND CONTENT LAST ---
     if (mode === 'text') formData.append('text', text);
     if (mode === 'file') formData.append('file', file);
     
-    // Advanced Options
-    if (expiryDate) formData.append('userExpiry', expiryDate);
-    if (password) formData.append('password', password);
-    formData.append('oneTimeView', oneTime);
-
     try {
       const res = await axios.post(`${API_URL}/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -59,6 +64,20 @@ const Home = () => {
     setExpiryDate('');
     setPassword('');
     setOneTime(false);
+    setMaxViews('');
+  };
+
+  // --- LOGIC: HANDLE MUTUAL EXCLUSION ---
+  const handleOneTimeToggle = () => {
+    if (maxViews) return; // Don't toggle if Max Views is set
+    setOneTime(!oneTime);
+  };
+
+  const handleMaxViewsChange = (e) => {
+    const val = e.target.value;
+    setMaxViews(val);
+    // If user types a number, ensure One-Time is OFF
+    if (val) setOneTime(false);
   };
 
   return (
@@ -72,8 +91,8 @@ const Home = () => {
           </div>
           
           <div className="text-sm text-slate-400">
-             {oneTime ? <span className="text-red-400 font-bold">⚠️ Warning: This link will expire after 1 view.</span> : 
-             password ? "Locked with password." : "Public link (anyone with link can view)."}
+             {oneTime ? <span className="text-red-400 font-bold">⚠️ Link expires after 1 view.</span> : 
+             password ? "Locked with password." : "Link is ready to share."}
           </div>
 
           <div className="flex items-center gap-2 bg-slate-900 p-2 rounded-lg border border-slate-700">
@@ -145,18 +164,37 @@ const Home = () => {
               />
             </div>
             
-            {/* One-Time View (Spans full width on mobile, col-span-2) */}
+            {/* Max Views */}
+            <div className={`p-3 rounded-lg border transition-all ${oneTime ? 'bg-slate-900/20 border-slate-800 opacity-50 cursor-not-allowed' : 'bg-slate-900/50 border-slate-700'}`}>
+              <label className="text-xs text-slate-400 flex items-center gap-2 mb-2 font-semibold">
+                <Hash size={14} /> Max Views
+              </label>
+              <input 
+                type="number" 
+                min="1"
+                className="w-full bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded p-2 focus:outline-none focus:border-blue-500 disabled:bg-slate-900 disabled:text-slate-600"
+                placeholder={oneTime ? "Disabled" : "e.g. 5"}
+                value={maxViews}
+                onChange={handleMaxViewsChange}
+                disabled={oneTime} 
+              />
+            </div>
+
+            {/* One-Time View */}
             <div 
-              className={`md:col-span-2 p-3 rounded-lg border cursor-pointer transition-all flex items-center justify-between ${oneTime ? 'bg-red-500/10 border-red-500/50' : 'bg-slate-900/50 border-slate-700'}`} 
-              onClick={() => setOneTime(!oneTime)}
+              className={`p-3 rounded-lg border transition-all flex items-center justify-between 
+                ${maxViews ? 'bg-slate-900/20 border-slate-800 opacity-50 cursor-not-allowed' : 
+                  oneTime ? 'bg-red-500/10 border-red-500/50 cursor-pointer' : 'bg-slate-900/50 border-slate-700 cursor-pointer'}`} 
+              onClick={handleOneTimeToggle}
             >
               <div>
-                <label className="text-xs text-slate-400 flex items-center gap-2 font-semibold cursor-pointer">
+                <label className={`text-xs flex items-center gap-2 font-semibold ${maxViews ? 'cursor-not-allowed text-slate-600' : 'cursor-pointer text-slate-400'}`}>
                     <EyeOff size={14} className={oneTime ? "text-red-400" : ""} /> One-Time View
                 </label>
-                <p className="text-[10px] text-slate-500 mt-1">Delete immediately after viewing once.</p>
               </div>
-              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${oneTime ? 'bg-red-500 border-red-500' : 'border-slate-600 bg-slate-800'}`}>
+              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors 
+                ${maxViews ? 'border-slate-800 bg-slate-900' : 
+                  oneTime ? 'bg-red-500 border-red-500' : 'border-slate-600 bg-slate-800'}`}>
                   {oneTime && <Check size={12} className="text-white" />}
               </div>
             </div>

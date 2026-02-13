@@ -7,10 +7,16 @@ const uploadSchema = new mongoose.Schema({
   originalName: { type: String },
   expireAt: { type: Date, required: true },
   createdAt: { type: Date, default: Date.now },
-  password: { type: String },
   
-  // NEW: Flag for one-time access
-  oneTimeView: { type: Boolean, default: false } 
+  // --- ADVANCED FIELDS (These were missing!) ---
+  password: { type: String },              
+  oneTimeView: { type: Boolean, default: false }, 
+  
+  // Counts how many times link was opened (Default 0 is CRITICAL)
+  views: { type: Number, default: 0 },     
+  
+  // The limit set by the user
+  maxViews: { type: Number }               
 });
 
 module.exports = mongoose.model('Upload', uploadSchema);
