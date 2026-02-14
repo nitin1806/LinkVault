@@ -1,17 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path'); // <--- This import was missing!
-const { uploadContent, getContent , deleteContent} = require('../controllers/uploadController');
+const path = require('path');
 
-// 1. CONFIGURE LOCAL STORAGE
+// Controllers
+const { 
+  uploadContent, 
+  getContent, 
+  deleteContent, 
+  getUserDashboard, 
+  toggleLinkStatus 
+} = require('../controllers/uploadController');
+const { register, login } = require('../controllers/authController');
+
+// Middleware
+const { protect, optionalAuth } = require('../middleware/auth');
+
+// Configure Local Storage for Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Ensure the 'uploads' folder exists in your backend root
     cb(null, 'uploads/'); 
   },
   filename: (req, file, cb) => {
-    // Rename file to prevent duplicates: uniqueSuffix-filename.ext
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
@@ -19,13 +29,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// POST /api/upload
-router.post('/upload', upload.single('file'), uploadContent);
+// AUTHENTICATION ROUTES 
+router.post('/auth/register', register);
+router.post('/auth/login', login);
 
-// GET /api/content/:id
+// PUBLIC / GUEST ROUTES 
+router.post('/upload', optionalAuth, upload.single('file'), uploadContent);
 router.get('/content/:id', getContent);
-
-// DELETE /api/content/:id  <-- NEW ROUTE
 router.delete('/content/:id', deleteContent);
+
+// PROTECTED DASHBOARD ROUTES 
+router.get('/dashboard/links', protect, getUserDashboard);
+router.put('/dashboard/links/:id/toggle', protect, toggleLinkStatus);
 
 module.exports = router;

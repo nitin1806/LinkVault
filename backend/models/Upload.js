@@ -8,15 +8,18 @@ const uploadSchema = new mongoose.Schema({
   expireAt: { type: Date, required: true },
   createdAt: { type: Date, default: Date.now },
   
-  // --- ADVANCED FIELDS (These were missing!) ---
   password: { type: String },              
   oneTimeView: { type: Boolean, default: false }, 
   
-  // Counts how many times link was opened (Default 0 is CRITICAL)
+  // Counts 
   views: { type: Number, default: 0 },     
   
   // The limit set by the user
-  maxViews: { type: Number }               
+  maxViews: { type: Number },
+
+  // for users
+  creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  status: { type: String, enum: ['active', 'deactivated', 'expired'], default: 'active' }
 });
 
 module.exports = mongoose.model('Upload', uploadSchema);

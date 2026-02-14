@@ -15,12 +15,12 @@ try {
   
   // Only define bucket if initialization worked
   bucket = admin.storage().bucket();
-  console.log("✅ Firebase Admin Initialized");
+  console.log(" Firebase Admin Initialized");
 
 } catch (error) {
   // If the file is missing or invalid, we just log a warning and keep the server running
-  console.warn("⚠️  Firebase Warning: serviceAccountKey.json not found or invalid.");
-  console.warn("⚠️  File uploads will be disabled, but Text uploads will work.");
+  console.warn(" Firebase Warning: serviceAccountKey.json not found or invalid.");
+  console.warn(" File uploads will be disabled, but Text uploads will work.");
 }
 
 module.exports = bucket;
