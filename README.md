@@ -2,103 +2,42 @@
 
 This is a full stack web application that allows users to upload text or files and share them securely with others using a generated link. Access to the uploaded content must be restricted strictly to users who possess the link, similar to link-based access in systems like Google Drive, Pastebin and TinyURL.
 
-Users can:
-- upload text or files
-- protect links with passwords
-- enforce one-time view or max-view limits
-- set custom expiry dates
-- create an account to manage their links from a dashboard
+## Setup Instructions
 
-The stack is:
-- `frontend`: React + Vite + Tailwind CSS
-- `backend`: Node.js + Express + MongoDB (Mongoose)
+### Prerequisites
 
-## Features
-
-- Share text or file content with short IDs (`/:shareId`)
-- Password-protected access (`?password=...`)
-- Expiration by date/time
-- One-time-view auto-expiry
-- Max views auto-expiry
-- Manual delete endpoint
-- Auth (register/login with JWT)
-- User dashboard for viewing created links and toggling active/deactivated status (except expired)
-- Background cleanup job (every minute) to mark expired links and remove uploaded files
-
-## How It Works
-
-1. Client uploads content to `POST /api/upload`.
-2. Server stores metadata in MongoDB and returns a generated `shareId`.
-3. Recipient opens `/<shareId>` on frontend, which fetches `GET /api/content/:id`.
-4. Server enforces status checks, expiry checks, password checks, and view limits.
-5. Expired/consumed links are soft-deleted in DB (`status: expired`) so dashboard history remains.
-
-## Project Structure
-
-```text
-LinkVault/
-├── backend/
-│   ├── config/db.js
-│   ├── controllers/
-│   │   ├── authController.js
-│   │   └── uploadController.js
-│   ├── middleware/auth.js
-│   ├── models/
-│   │   ├── Upload.js
-│   │   └── User.js
-│   ├── routes/apiRoutes.js
-│   ├── uploads/
-│   └── server.js
-├── frontend/
-│   ├── src/
-│   │   ├── pages/
-│   │   │   ├── Home.jsx
-│   │   │   └── ViewContent.jsx
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── index.css
-│   └── vite.config.js
-└── README.md
-```
-
-## Prerequisites
-
-- Node.js 18+ recommended
+- Node.js 18+
 - npm
-- MongoDB running locally or remotely
+- MongoDB instance (local or hosted)
 
-## Environment Variables
-
-Create `backend/.env`:
-
-```env
-PORT=5000
-MONGO_URI=mongodb://localhost:27017/linkvault
-JWT_SECRET=replace_with_a_secure_secret
-```
-
-Notes:
-- `JWT_SECRET` has a code fallback, but you should set it explicitly in production.
-- `FIREBASE_BUCKET_URL` exists in a utility file, but Firebase storage is not used by current upload flow.
-
-## Local Development
-
-Run backend:
+### 1. Backend setup
 
 ```bash
 cd backend
 npm install
-npm run dev
 ```
 
-Run backend in production mode:
+Create `backend/.env`: if not present
+
+```env
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/linkvault
+JWT_SECRET=replace_with_a_long_random_secret
+```
+
+Start backend:
 
 ```bash
-cd backend
+# development
+npm run dev
+
+# production
 npm start
 ```
 
-Run frontend (new terminal):
+Backend runs on `http://localhost:5000`.
+
+### 2. Frontend setup
 
 ```bash
 cd frontend
@@ -106,48 +45,83 @@ npm install
 npm run dev
 ```
 
-Open:
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:5000/api`
+Frontend runs on `http://localhost:5173`.
+
+### 3. Usage flow
+
+1. Open the frontend at `http://localhost:5173`.
+2. Upload text or a file.
+3. Share the generated link (`/<shareId>`).
+4. Open that link to view or download content.
 
 ## API Overview
 
-Auth:
-- `POST /api/auth/register`
-- `POST /api/auth/login`
+Base URL: `http://localhost:5000/api`
 
-Content:
-- `POST /api/upload` (multipart/form-data; optional Bearer token)
-- `GET /api/content/:id`
-- `DELETE /api/content/:id`
+### Auth
 
-Dashboard (requires Bearer token):
-- `GET /api/dashboard/links`
-- `PUT /api/dashboard/links/:id/toggle`
+- `POST /auth/register`
+- Body: `{ "userId": "john123", "email": "john@example.com", "password": "secret" }`
+- Response: `{ "token": "...", "userId": "john123" }`
 
-## Upload Request Fields
+- `POST /auth/login`
+- Body: `{ "loginId": "john123_or_email", "password": "secret" }`
+- Response: `{ "token": "...", "userId": "john123" }`
 
-`POST /api/upload` accepts:
-- `text` (string) OR `file` 
-- `userExpiry` (datetime string, optional)
+### Content
+
+- `POST /upload`
+- Content type: `multipart/form-data`
+- Fields:
+- `text` (string) or `file` (binary) is required
+- `userExpiry` (ISO datetime, optional)
 - `password` (string, optional)
-- `oneTimeView` (`true/false`, optional)
+- `oneTimeView` (`"true"` or `"false"`, optional)
 - `maxViews` (number, optional)
+- Auth: optional `Authorization: Bearer <token>`
+- Response: `{ "success": true, "shareId": "abc123...", "expiresAt": "..." }`
 
-If no expiry is provided, backend defaults to 10 minutes.
+- `GET /content/:id`
+- Query: `?password=<value>` if link is protected
+- Response includes:
+- `type`, `content`, `originalName`, `createdAt`, `expireAt`
+- `oneTimeView`, `views`, `maxViews`, `protected`
 
-## Data Models
+- `DELETE /content/:id`
+- Marks content as expired/deleted (soft delete behavior)
+- Current implementation does not require authentication
 
-`User`:
-- `userId`, `email`, `password`, `createdAt`
+### Dashboard (Bearer token required)
 
-`Upload`:
-- `shareId`, `type`, `content`, `originalName`, `expireAt`, `createdAt`
-- `password`, `oneTimeView`, `views`, `maxViews`
-- `creator`, `status` (`active|deactivated|expired`)
+- `GET /dashboard/links`
+- Returns links created by authenticated user, including active/deactivated/expired
 
-## Known Notes
+- `PUT /dashboard/links/:id/toggle`
+- Toggles status between `active` and `deactivated`
+- Expired links cannot be reactivated
 
-- Frontend API base URL is hardcoded to `http://localhost:5000/api` in `frontend/src/pages/Home.jsx` and `frontend/src/pages/ViewContent.jsx`.
-- `DELETE /api/content/:id` does not require authentication in current code.
-- Empty component files exist in `frontend/src/components/` and are currently unused.
+## Design Decisions
+
+- `shareId` is generated with `nanoid(10)` to avoid sequential/publicly guessable numeric IDs.
+- Upload entries are soft-deleted (`status = expired`) instead of removing DB records, so dashboard history remains visible.
+- File cleanup is handled in two places:
+- immediate cleanup during fetch/delete for links that become invalid
+- scheduled cleanup job (`node-cron`, every minute) for time-based expiry
+- Authentication is JWT-based with:
+- `protect` middleware for required auth routes
+- `optionalAuth` middleware for guest + logged-in uploads
+- Upload storage currently uses local disk (`backend/uploads`) via `multer`.
+- View limiting is enforced server-side after each successful access:
+- one-time links expire after first view
+- `maxViews` links expire when threshold is reached
+
+## Assumptions and Limitations
+
+- Frontend API URL is hardcoded to `http://localhost:5000/api` in `frontend/src/pages/Home.jsx` and `frontend/src/pages/ViewContent.jsx`.
+- Local file storage is used; there is no active cloud storage path in the current upload flow.
+- `DELETE /api/content/:id` is unauthenticated, so anyone with the link can delete that content.
+- No rate limiting or abuse protection is implemented on auth or content endpoints.
+- Access control is link possession (and optional password), not ACL/user-level permissions per link.
+- Expiry cleanup runs every minute, so already-expired items may exist briefly until fetched or cron executes.
+- There is minimal input validation for file type/size and expiry bounds.
+- Error responses are simple and not standardized under a shared error schema.
